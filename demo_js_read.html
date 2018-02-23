@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>dcm read</title>
+		<script src="https://github.com/ivmartel/dwv/releases/download/v0.22.0/dwv-0.22.0.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.0/jquery.min.js"></script>
+		<script src="https://raw.githubusercontent.com/kig/DataStream.js/master/DataStream.js"></script>
+	</head>
+	<body>
+		<div id="meta"></div>
+		
+		<div id="tags"></div>
+		
+		<canvas id="myCanvas" width="300" height="200" style="border:1px solid #d3d3d3;"></canvas>
+		<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <button onclick="setPixel()" style="height: 67px; width: 192px">Set pixel data</button> </p>
+
+    </body>
+    <script>
+		var url = "https://raw.githubusercontent.com/ivmartel/dwv/master/tests/data/bbmri-53323851.dcm";
+		var size_data;
+		var image_data;
+		var onload = function () {
+			// setup the dicom parser
+			var dicomParser = new dwv.dicom.DicomParser();
+			//console.log(this.response);
+			if (this.response != undefined)
+			{
+				// parse the buffer
+				dicomParser.parse(this.response);
+				var pixelBuffer = dicomParser.getRawDicomElements().x7FE00010.value;
+				// create the image
+				var imageFactory = new dwv.image.ImageFactory();
+				var image = imageFactory.create(
+					dicomParser.getDicomElements(),
+					pixelBuffer );
+					
+				// get the image size
+				var size = image.getGeometry().getSize();
+				
+				// insert into HTML
+				var div = document.getElementById("meta");
+				// get the image size
+				div.appendChild(document.createTextNode(
+					"Size: " + 
+					size.getNumberOfColumns() + ", " +
+					size.getNumberOfRows() + 
+					" (should be 256,256)"));
+				div.appendChild(document.createElement("br"));
+				// get a pixel value
+				div.appendChild(document.createTextNode(
+					"Pixel [128,40]: " +
+					image.getRescaledValue(128,40,0) + 
+					" (should be 101)"));
+
+				size_data=size;
+				image_data=image;
+// 				console.log(size);
+// 				console.log(size.getNumberOfColumns());
+// 				console.log(image);
+// 				console.log(image.getDataRange());
+ 				console.log(image.getBuffer());
+				var raw_data=image_data.getBuffer()[0];
+				console.log(raw_data[502]);
+			}
+		};
+		
+		var request = new XMLHttpRequest();
+		request.open('GET', url, true);
+		request.responseType = "arraybuffer";
+		request.onload = onload;
+		request.send(null);
+
+
+
+		function setPixel() {
+// 			console.log(size_data);
+// 			console.log(size_data.getNumberOfColumns());
+// 			console.log(image_data);
+// 			console.log(image_data.getDataRange());
+			console.log(image_data.getBuffer());
+
+			var c = document.getElementById("myCanvas");
+			c.width = size_data.getNumberOfColumns();
+			c.height = size_data.getNumberOfRows();
+			var ctx = c.getContext("2d");
+			var WindowCenter = 40;//window 中心值
+			var WindowWidth = 50;//window width
+			var Max, Min;
+			Max = WindowCenter + WindowWidth / 2;
+			Min = WindowCenter - WindowWidth / 2;
+			var raw_data=image_data.getBuffer()[0];
+			console.log(raw_data);
+			var imageData = ctx.getImageData(0, 0, c.width, c.height);
+			for (var y = 0; y < c.height; y++) {
+			 for (var x = 0; x < c.width; x++) 
+			   {
+					// Get DICOM image pixel index
+					var pixelValue = raw_data[y * c.width + x]; // true for littel endian
+					var grayValue;
+					if (pixelValue >= Max) grayValue = 255; // 灰階值 白
+						else if (Min > pixelValue) grayValue = 0; // 灰階值
+						else grayValue = Math.round((pixelValue - Min) / WindowWidth * 256); //對數字做指定位數的四捨五入計算;電腦顯示值
+
+					// Get the canvas pixel +  index
+					var canvasPixelIndex = (y * c.width + x) * 4;
+					//dicomData.getInt8  references to JS dataView and arrayBuffer  http://www.javascripture.com/ArrayBuffer
+					imageData.data[canvasPixelIndex] = grayValue;     // Red
+					imageData.data[canvasPixelIndex + 1] = grayValue; // Green
+					imageData.data[canvasPixelIndex + 2] = grayValue;  // Blue
+					imageData.data[canvasPixelIndex + 3] =255;   // Alpha
+				}
+			}
+			ctx.putImageData(imageData, 0, 0);
+		}
+    </script>
+</html>
